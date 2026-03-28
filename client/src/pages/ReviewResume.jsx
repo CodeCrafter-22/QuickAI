@@ -95,7 +95,55 @@ const ReviewResume = () => {
           </div>
         ) : result ? (
           <div className='flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-line'>
-            {result}
+            <div className="flex-1 overflow-y-auto text-sm space-y-4">
+
+  {result && (
+    <>
+      {/* ATS Score */}
+      <div className="p-3 bg-blue-50 rounded">
+        <h2 className="font-semibold text-blue-600">ATS Score</h2>
+        <p>{result.match(/ATS Score:\s*(.*)/)?.[1]}</p>
+      </div>
+
+      {/* Strengths */}
+      <div className="p-3 bg-green-50 rounded">
+        <h2 className="font-semibold text-green-600">Strengths</h2>
+        <ul className="list-disc ml-5">
+          {result.match(/Strengths:\s*([\s\S]*?)Weaknesses:/)?.[1]
+            ?.split("\n")
+            .map((item, i) => item && <li key={i}>{item}</li>)}
+        </ul>
+      </div>
+
+      {/* Weaknesses */}
+      <div className="p-3 bg-red-50 rounded">
+        <h2 className="font-semibold text-red-600">Weaknesses</h2>
+        <ul className="list-disc ml-5">
+          {result.match(/Weaknesses:\s*([\s\S]*?)Improvements:/)?.[1]
+            ?.split("\n")
+            .map((item, i) => item && <li key={i}>{item}</li>)}
+        </ul>
+      </div>
+
+      {/* Improvements */}
+      <div className="p-3 bg-yellow-50 rounded">
+        <h2 className="font-semibold text-yellow-600">Improvements</h2>
+        <ul className="list-disc ml-5">
+          {result.match(/Improvements:\s*([\s\S]*?)Summary:/)?.[1]
+            ?.split("\n")
+            .map((item, i) => item && <li key={i}>{item}</li>)}
+        </ul>
+      </div>
+
+      {/* Summary */}
+      <div className="p-3 bg-gray-100 rounded">
+        <h2 className="font-semibold text-gray-700">Summary</h2>
+        <p>{result.match(/Summary:\s*([\s\S]*)/)?.[1]}</p>
+      </div>
+    </>
+  )}
+
+</div>
           </div>
         ) : (
           <div className='flex-1 flex flex-col justify-center items-center text-gray-400 text-sm gap-5'>

@@ -236,7 +236,18 @@ export const resumeReview = async (req, res) => {
     const dataBuffer = fs.readFileSync(resume.path);
     const pdfData = await pdfParse(dataBuffer);
 
-    const prompt = `Review this resume:\n${pdfData.text}`;
+    const prompt = `
+    Analyze this resume and give structured feedback:
+
+    1. ATS Score (out of 100)
+    2. Strengths (bullet points)
+    3. Weaknesses (bullet points)
+    4. Improvements (bullet points)
+    5. Final Summary (short paragraph)
+
+    Resume:
+    ${pdfData.text}
+    `;
 
     const completion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
