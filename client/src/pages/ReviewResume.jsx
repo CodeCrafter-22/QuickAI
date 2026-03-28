@@ -1,13 +1,15 @@
 import { FileText, Sparkles } from 'lucide-react';
 import React, { useState } from 'react'
 import axios from "axios";
+import jsPDF from "jspdf";
 
 const ReviewResume = () => {
 
   const [input, setInput] = useState(null)
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
+  // ✅ SUBMIT HANDLER
   const onSubmitHandler = async (e) => {
     e.preventDefault();
 
@@ -24,15 +26,13 @@ const ReviewResume = () => {
       formData.append("resume", input);
 
       const { data } = await axios.post(
-        "http://localhost:3000/api/ai/resume-review", // ⚠️ make sure route is correct
+        "http://localhost:3000/api/ai/resume-review",
         formData,
         { withCredentials: true }
       );
 
-      console.log(data);
-
       if (data.success) {
-        setResult(data.content); // ✅ IMPORTANT
+        setResult(data.content);
       } else {
         alert(data.message);
       }
@@ -43,8 +43,22 @@ const ReviewResume = () => {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
+  // ✅ DOWNLOAD PDF
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Resume Review Report", 10, 10);
+
+    const lines = doc.splitTextToSize(result, 180);
+
+    doc.setFontSize(10);
+    doc.text(lines, 10, 20);
+
+    doc.save("resume-review.pdf");
+  };
 
   return (
     <div className='h-full overflow-y-scroll p-6 flex items-start gap-6 text-slate-700'>
@@ -83,7 +97,7 @@ const ReviewResume = () => {
 
       {/* RIGHT COLUMN */}
       <div className='w-full max-w-lg p-4 bg-white rounded-lg border border-gray-200 min-h-96 flex flex-col max-h-[600px]'>
-        
+
         <div className='flex items-center gap-3 mb-6'>
           <FileText className='w-5 h-5 text-[#00DA83]' />
           <h1 className='text-xl font-semibold'>Analysis Results</h1>
@@ -94,56 +108,58 @@ const ReviewResume = () => {
             Analyzing resume...
           </div>
         ) : result ? (
-          <div className='flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-line'>
-            <div className="flex-1 overflow-y-auto text-sm space-y-4">
+          <div className='flex-1 overflow-y-auto text-sm space-y-4'>
 
-  {result && (
-    <>
-      {/* ATS Score */}
-      <div className="p-3 bg-blue-50 rounded">
-        <h2 className="font-semibold text-blue-600">ATS Score</h2>
-        <p>{result.match(/ATS Score:\s*(.*)/)?.[1]}</p>
-      </div>
+            {/* ATS Score */}
+            <div className="p-3 bg-blue-50 rounded">
+              <h2 className="font-semibold text-blue-600">ATS Score</h2>
+              <p>{result.match(/ATS Score:\s*(.*)/)?.[1]}</p>
+            </div>
 
-      {/* Strengths */}
-      <div className="p-3 bg-green-50 rounded">
-        <h2 className="font-semibold text-green-600">Strengths</h2>
-        <ul className="list-disc ml-5">
-          {result.match(/Strengths:\s*([\s\S]*?)Weaknesses:/)?.[1]
-            ?.split("\n")
-            .map((item, i) => item && <li key={i}>{item}</li>)}
-        </ul>
-      </div>
+            {/* Strengths */}
+            <div className="p-3 bg-green-50 rounded">
+              <h2 className="font-semibold text-green-600">Strengths</h2>
+              <ul className="list-disc ml-5">
+                {result.match(/Strengths:\s*([\s\S]*?)Weaknesses:/)?.[1]
+                  ?.split("\n")
+                  .map((item, i) => item && <li key={i}>{item}</li>)}
+              </ul>
+            </div>
 
-      {/* Weaknesses */}
-      <div className="p-3 bg-red-50 rounded">
-        <h2 className="font-semibold text-red-600">Weaknesses</h2>
-        <ul className="list-disc ml-5">
-          {result.match(/Weaknesses:\s*([\s\S]*?)Improvements:/)?.[1]
-            ?.split("\n")
-            .map((item, i) => item && <li key={i}>{item}</li>)}
-        </ul>
-      </div>
+            {/* Weaknesses */}
+            <div className="p-3 bg-red-50 rounded">
+              <h2 className="font-semibold text-red-600">Weaknesses</h2>
+              <ul className="list-disc ml-5">
+                {result.match(/Weaknesses:\s*([\s\S]*?)Improvements:/)?.[1]
+                  ?.split("\n")
+                  .map((item, i) => item && <li key={i}>{item}</li>)}
+              </ul>
+            </div>
 
-      {/* Improvements */}
-      <div className="p-3 bg-yellow-50 rounded">
-        <h2 className="font-semibold text-yellow-600">Improvements</h2>
-        <ul className="list-disc ml-5">
-          {result.match(/Improvements:\s*([\s\S]*?)Summary:/)?.[1]
-            ?.split("\n")
-            .map((item, i) => item && <li key={i}>{item}</li>)}
-        </ul>
-      </div>
+            {/* Improvements */}
+            <div className="p-3 bg-yellow-50 rounded">
+              <h2 className="font-semibold text-yellow-600">Improvements</h2>
+              <ul className="list-disc ml-5">
+                {result.match(/Improvements:\s*([\s\S]*?)Summary:/)?.[1]
+                  ?.split("\n")
+                  .map((item, i) => item && <li key={i}>{item}</li>)}
+              </ul>
+            </div>
 
-      {/* Summary */}
-      <div className="p-3 bg-gray-100 rounded">
-        <h2 className="font-semibold text-gray-700">Summary</h2>
-        <p>{result.match(/Summary:\s*([\s\S]*)/)?.[1]}</p>
-      </div>
-    </>
-  )}
+            {/* Summary */}
+            <div className="p-3 bg-gray-100 rounded">
+              <h2 className="font-semibold text-gray-700">Summary</h2>
+              <p>{result.match(/Summary:\s*([\s\S]*)/)?.[1]}</p>
+            </div>
 
-</div>
+            {/* ✅ DOWNLOAD BUTTON */}
+            <button
+              onClick={downloadPDF}
+              className="mt-4 bg-black text-white px-4 py-2 rounded w-full"
+            >
+              Download PDF
+            </button>
+
           </div>
         ) : (
           <div className='flex-1 flex flex-col justify-center items-center text-gray-400 text-sm gap-5'>
@@ -158,4 +174,4 @@ const ReviewResume = () => {
   )
 }
 
-export default ReviewResume
+export default ReviewResume;
