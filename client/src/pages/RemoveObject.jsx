@@ -12,6 +12,11 @@ const RemoveObject = () => {
   const onSubmitHandler = async (e) => {
     e.preventDefault();
 
+    if (!input) {
+      alert("Please upload an image");
+      return;
+    }
+
     try {
       setLoading(true);
       setImageUrl("");
@@ -28,10 +33,13 @@ const RemoveObject = () => {
         }
       );
 
+      console.log(data);
+
       if (data.success) {
-        setImageUrl(data.imageUrl || data.content);
+        // ✅ FIX: set correct image URL
+        setImageUrl(data.content);
       } else {
-        alert(data.message); // ⭐ SHOW PREMIUM MESSAGE
+        alert(data.message);
       }
 
     } catch (err) {
@@ -75,7 +83,8 @@ const RemoveObject = () => {
 
         <button
           type="submit"
-          className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#417DF6] to-[#8E37EB] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'
+          disabled={loading}
+          className='w-full flex justify-center items-center gap-2 bg-gradient-to-r from-[#417DF6] to-[#8E37EB] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer disabled:opacity-50'
         >
           <Scissors className='w-5'/>
           {loading ? "Processing..." : "Remove Object"}
@@ -96,7 +105,11 @@ const RemoveObject = () => {
             Processing image...
           </div>
         ) : imageUrl ? (
-          <img src={imageUrl} alt="Processed" className='rounded-lg' />
+          <img
+            src={imageUrl}
+            alt="Processed"
+            className='rounded-lg w-full object-contain'
+          />
         ) : (
           <div className='flex-1 flex flex-col justify-center items-center text-gray-400 text-sm gap-5'>
             <Scissors className='w-10 h-10' />
