@@ -1,0 +1,39 @@
+# ======================
+# Node modules (both client & server)
+# ======================
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# ======================
+# Environment files
+# ======================
+.env
+.env.*
+client/.env
+server/.env
+
+# ======================
+# Secret / config folders
+# ======================
+SEC/
+
+# ======================
+# Build folders
+# ======================
+client/build/
+client/dist/
+server/build/
+server/dist/
+
+# ======================
+# Logs
+# ======================
+logs
+*.log
+npm-debug.log*
+
+# ======================
+# OS / misc
+# ======================
+.DS_Store

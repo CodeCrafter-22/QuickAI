@@ -1,51 +1,36 @@
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import sql from "../configs/db.js";
 import { clerkClient } from "@clerk/express";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
 import FormData from "form-data";
-import fs from 'fs'
+import fs from "fs";
 import pdfParse from "pdf-parse";
 
-
-const AI = new OpenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+// Groq setup
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
+// ================== GENERATE ARTICLE ==================
 export const generateArticle = async (req, res) => {
   try {
     const { userId } = req.auth();
     const { aiprompt, length } = req.body;
 
-    // Map length value to word range
     let range = "";
     if (length === "short") range = "500–800 words";
     else if (length === "medium") range = "800–1200 words";
     else range = "1200+ words";
 
-    // Build strong AI prompt
-    const prompt = input; // only topic
+    const prompt = `${aiprompt}. Write an article of ${range}.`;
 
-    const response = await AI.chat.completions.create({
-      model: "gemini-2.5-flash",
-      messages: [
-        { role: "user", content: aiPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 3500
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "llama-3.3-70b-versatile",
     });
 
-    console.log("AI Response:", JSON.stringify(response, null, 2));
-
-    const content = response.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return res.json({
-        success: false,
-        message: "AI returned no content"
-      });
-    }
+    const content = completion.choices[0]?.message?.content;
 
     await sql`
       INSERT INTO creations (user_id, prompt, content, type)
@@ -53,56 +38,37 @@ export const generateArticle = async (req, res) => {
     `;
 
     res.json({ success: true, content });
-
   } catch (err) {
     console.log(err);
     res.json({ success: false, message: err.message });
   }
 };
 
+// ================== GENERATE BLOG TITLE ==================
 export const generateBlogTitle = async (req, res) => {
   try {
-    const { userId } = req.auth();
+    const userId = "test-user";
     const { prompt } = req.body;
-    const plan = req.plan;
-    const free_usage = req.free_usage;
 
-    if(plan !== 'premium' && free_usage >= 10){
-        return res.json({ success: false, message: "Limit reached. Upgrade to continue!!"})
-    }
+    const plan = "free";        // ✅ FIX
+    const free_usage = 0;       // ✅ FIX
 
-    const response = await AI.chat.completions.create({
-      model: "gemini-2.5-flash",
+    const completion = await groq.chat.completions.create({
       messages: [
-        { role: "user", content: prompt, }
+        {
+          role: "user",
+          content: `Generate 5 catchy blog titles for: ${prompt}`,
+        },
       ],
-      temperature: 0.7,
-      max_tokens: 3500,
+      model: "llama-3.3-70b-versatile",
     });
 
-    console.log("AI Response:", JSON.stringify(response, null, 2));
-
-    const content = response.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return res.json({
-        success: false,
-        message: "AI returned no content"
-      });
-    }
+    const content = completion.choices[0]?.message?.content;
 
     await sql`
       INSERT INTO creations (user_id, prompt, content, type)
       VALUES (${userId}, ${prompt}, ${content}, 'article')
     `;
-
-    if(plan !== 'premium'){
-        await clerkClient.users.updateUserMetadata(userId, {
-            privateMetadata:{
-                free_usage: free_usage + 1
-            }
-        })
-    }
 
     res.json({ success: true, content });
 
@@ -112,10 +78,10 @@ export const generateBlogTitle = async (req, res) => {
   }
 };
 
-
+// ================== GENERATE IMAGE ==================
 export const generateImage = async (req, res) => {
   try {
-    const { userId } = req.auth();
+    const userId = "test-user";
     const { prompt, publish } = req.body;
     const plan = req.plan;
     const free_usage = req.free_usage;
@@ -127,7 +93,6 @@ export const generateImage = async (req, res) => {
       });
     }
 
-    // --------- 1. GENERATE IMAGE USING CLIPDROP ----------
     const formData = new FormData();
     formData.append("prompt", prompt);
 
@@ -136,43 +101,37 @@ export const generateImage = async (req, res) => {
       formData,
       {
         headers: {
-        ...formData.getHeaders(),
-        "x-api-key": process.env.CLIPDROP_API_KEY
+          ...formData.getHeaders(),
+          "x-api-key": process.env.CLIPDROP_API_KEY,
         },
-
         responseType: "arraybuffer",
       }
     );
 
-    // --------- 2. CONVERT OUTPUT TO BASE64 -------------
     const base64Image = `data:image/png;base64,${Buffer.from(
       data,
       "binary"
     ).toString("base64")}`;
 
-    // --------- 3. UPLOAD IMAGE TO CLOUDINARY -----------
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "quickai",
     });
 
     const imageUrl = uploadResult.secure_url;
 
-    // --------- 4. INSERT INTO DATABASE ----------------
     await sql`
       INSERT INTO creations (user_id, prompt, content, type, publish)
       VALUES (${userId}, ${prompt}, ${imageUrl}, 'image', ${publish ?? false});
     `;
 
-    // --------- 5. UPDATE USER FREE USAGE --------------
-    if (plan !== "premium") {
-      await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: {
-          free_usage: free_usage + 1,
-        },
-      });
-    }
+    //if (plan !== "premium") {
+      //await clerkClient.users.updateUserMetadata(userId, {
+        //privateMetadata: {
+          //free_usage: free_usage + 1,
+        //},
+      //});
+    //}
 
-    // --------- 6. SEND RESPONSE ------------------------
     res.json({ success: true, imageUrl });
   } catch (err) {
     console.log(err);
@@ -180,10 +139,11 @@ export const generateImage = async (req, res) => {
   }
 };
 
+// ================== REMOVE IMAGE BACKGROUND ==================
 export const removeImageBackground = async (req, res) => {
   try {
     const { userId } = req.auth();
-    const {image} = req.file;
+    const image = req.file;
     const plan = req.plan;
     const free_usage = req.free_usage;
 
@@ -196,74 +156,62 @@ export const removeImageBackground = async (req, res) => {
 
     const uploadResult = await cloudinary.uploader.upload(image.path, {
       folder: "quickai",
-      transformation: [
-        {
-            effect: 'background_removal',
-            background_removal: 'remove_the_background'
-        }
-      ]
+      transformation: [{ effect: "background_removal" }],
     });
 
     const imageUrl = uploadResult.secure_url;
-    
+
     await sql`
       INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, 'Remove background from image', ${imageUrl}, 'image');
+      VALUES (${userId}, 'Removed background', ${imageUrl}, 'image');
     `;
 
-    if (plan !== "premium") {
-      await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: {
-          free_usage: free_usage + 1,
-        },
-      });
-    }
-
-    
-    res.json({ success: true, content: imageUrl });
+    res.json({ success: true, imageUrl });
   } catch (err) {
     console.log(err);
     res.json({ success: false, message: err.message });
   }
 };
 
+// ================== REMOVE OBJECT ==================
 export const removeImageObject = async (req, res) => {
   try {
     const { userId } = req.auth();
     const { object } = req.body;
-    const {image} = req.file;
-    const plan = req.plan;
+    const image = req.file;
+    // ✅ GET PLAN FROM CLERK
+    const user = await clerkClient.users.getUser(userId);
+    const plan = user.privateMetadata?.plan || "free";
+
+    console.log("PLAN:", plan); // 🔍 debug
 
     if (plan !== "premium") {
       return res.json({
         success: false,
-        message: "This feature is only available for premium subscriptions!",
+        message: "Premium feature only!",
       });
     }
 
-    const {public_id} = await cloudinary.uploader.upload(image.path);
+    if (!image) {
+      return res.json({
+        success: false,
+        message: "Image not uploaded",
+      });
+    }
 
-    const imageUr = cloudinary.url(public_id, {
-        transformation: [{effect: `gen_remove:${object}`}],
-        resource_type: 'image'
-    })
+    const { public_id } = await cloudinary.uploader.upload(image.path);
 
-    const imgUr = uploadResult.secure_url;
-    
+    const imageUrl = cloudinary.url(public_id, {
+      transformation: [{ effect: `gen_remove:${object}` }],
+      resource_type: "image",
+    });
+
     await sql`
       INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, ${`Removed ${object} from image`}, ${imageUr}, 'image')
+      VALUES (${userId}, ${`Removed ${object}`}, ${imageUrl}, 'image')
     `;
 
-    if (plan !== "premium") {
-      await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: {
-          free_usage: free_usage + 1,
-        },
-      });
-    }
-
-    res.json({ success: true, content: imageUr });
+    res.json({ success: true, content: imageUrl });
 
   } catch (err) {
     console.log(err);
@@ -271,6 +219,7 @@ export const removeImageObject = async (req, res) => {
   }
 };
 
+// ================== RESUME REVIEW ==================
 export const resumeReview = async (req, res) => {
   try {
     const { userId } = req.auth();
@@ -280,44 +229,28 @@ export const resumeReview = async (req, res) => {
     if (plan !== "premium") {
       return res.json({
         success: false,
-        message: "This feature is only available for premium subscriptions!",
+        message: "Premium feature only!",
       });
     }
 
-    if(resume.size > 5 * 1024 *1024){
-      return res.json({success: false, message: "Resume file size exceeds allowed size (5MB)."})
-    }
+    const dataBuffer = fs.readFileSync(resume.path);
+    const pdfData = await pdfParse(dataBuffer);
 
-    const dataBuffer = fs.readFileSync(resume.path)
-    const pdfData = await pdfParse(dataBuffer)
+    const prompt = `Review this resume:\n${pdfData.text}`;
 
-    const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`
-
-    const response = await AI.chat.completions.create({
-      model: "gemini-2.5-flash",
-      messages: [
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "llama-3.3-70b-versatile",
     });
 
-    const content = response.choices?.[0]?.message?.content;
-    
+    const content = completion.choices[0]?.message?.content;
+
     await sql`
       INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
+      VALUES (${userId}, 'Resume Review', ${content}, 'resume-review')
+    `;
 
-    if (plan !== "premium") {
-      await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: {
-          free_usage: free_usage + 1,
-        },
-      });
-    }
-
-    res.json({ success: true, content: content });
-    
+    res.json({ success: true, content });
   } catch (err) {
     console.log(err);
     res.json({ success: false, message: err.message });
